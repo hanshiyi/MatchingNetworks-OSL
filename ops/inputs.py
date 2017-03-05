@@ -27,6 +27,7 @@ import time
 import threading
 
 
+
 def pitch_shift_op(input):
     # randomly distort the sound
     # generate a random pitch shift step between -4 and 4
@@ -48,7 +49,7 @@ def convert_to_melspectogram_op(input):
     return distorted_sound
 
 
-def process_pickles_and_augment(directory, augment_percent, mode):
+def process_pickles_and_augment_sound(directory, augment_percent, mode):
     print "Loading and augmenting dataset..."
     dataset = []
     if mode == 'train':
@@ -56,6 +57,7 @@ def process_pickles_and_augment(directory, augment_percent, mode):
     elif mode == 'validation':
         tf_record_pattern = os.path.join(directory, '%s-*' % "validation")
     data_files = tf.gfile.Glob(tf_record_pattern)
+    print data_files
     for i in data_files:
         dataset.append(np.load(i))
 
@@ -71,8 +73,38 @@ def process_pickles_and_augment(directory, augment_percent, mode):
                 sound_buffer.append([convert_to_melspectogram_op(pitch_shift_op(b[k]))])
         for j in b:
             sound_buffer.append([convert_to_melspectogram_op(j)])
-
+        sound_buffer = sound_buffer
         new_dataset[i.keys()[0]] = np.vstack(sound_buffer)
+
+    return new_dataset
+
+
+def process_pickles_and_augment(directory, augment_percent, mode):
+    print "Loading and augmenting dataset..."
+    dataset = []
+    if mode == 'train':
+        tf_record_pattern = os.path.join(directory, '%s-*' % "train")
+    elif mode == 'validation':
+        tf_record_pattern = os.path.join(directory, '%s-*' % "validation")
+    data_files = tf.gfile.Glob(tf_record_pattern)
+
+
+    new_dataset = {}
+    _sess = tf.Session()
+    for iter in data_files:
+        try:
+            for s_example in tf.python_io.tf_record_iterator(iter):
+                example = tf.train.Example()
+                example.ParseFromString(s_example)
+                image_encoding = example.features.feature['image/encoded'].bytes_list.value
+                _png_data = tf.placeholder(dtype=tf.string)
+                image_data = _sess.run(tf.image.decode_png(_png_data), feed_dict={_png_data: image_encoding[0]})
+                label = example.features.feature['image/class/label'].int64_list.value
+                new_dataset.setdefault(label[0],[])
+                new_dataset[label[0]].append(image_data)
+        except Exception,e :
+            print iter
+
     return new_dataset
 
 
@@ -228,3 +260,6 @@ class CustomRunner(object):
             t.start()
             threads.append(t)
         return threads
+
+if __name__ == '__main__':
+    process_pickles_and_augment("/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/processed-data", 0.02, 'train')

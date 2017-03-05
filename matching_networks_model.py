@@ -203,7 +203,7 @@ class MatchingNetworks(object):
             output, initial_state = cell(sound_embeddings, zero_state)
 
             attention = tf.nn.softmax((tf.matmul(self.g_embedding[0], tf.transpose(output))))
-            output = tf.add(model_output, output)
+            output = tf.add(model_output, output) #wrong
             read_out = tf.reduce_sum(tf.mul(attention, self.g_embedding[0]), 0, keep_dims=True)
             h_concatenated = tf.concat(1, [output, read_out])
 

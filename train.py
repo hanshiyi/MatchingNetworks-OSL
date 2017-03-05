@@ -31,11 +31,11 @@ import os
 FLAGS = tf.app.flags.FLAGS
 
 tf.flags.DEFINE_string("input_file_pattern",
-                       "/Users/luna/workspace/MatchingNetworks-OSL/data/processed_data/train-?????-of-00005",
+                       "/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/processed-data/train-?????-of-01200",
                        "File pattern of sharded TFRecord input files.")
 tf.flags.DEFINE_string("model_checkpoint_file", "",
                        "Path to pretrained models g and f.")
-tf.flags.DEFINE_string("train_dir", "/Users/luna/workspace/MatchingNetworks-OSL/model/train",
+tf.flags.DEFINE_string("train_dir", "/Users/hanshiyi/workspace/MatchingNetworks-OSL/model/train",
                        "Directory for saving and loading model checkpoints.")
 tf.flags.DEFINE_boolean("train_model", True,
                         "Whether to train model submodel variables.")
@@ -126,9 +126,9 @@ def main(unused_argv):
     # Build the TensorFlow graph.
 
     with tf.Graph().as_default():
-        dataset = input_ops.process_pickles_and_augment("/Users/luna/workspace/MatchingNetworks-OSL/data/processed_data", 0.02,
+        dataset = input_ops.process_pickles_and_augment("/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/processed-data", 0.02,
                                                         'train')
-        eval_dataset = input_ops.process_pickles_and_augment("/Users/luna/workspace/MatchingNetworks-OSL/data/processed_data", 0.02,
+        eval_dataset = input_ops.process_pickles_and_augment("/Users/hanshiyi/workspace/MatchingNetworks-OSL/omniglot/data/processed-data", 0.02,
                                                         'validation')
 
         model = matching_networks_model.MatchingNetworks(

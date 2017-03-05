@@ -47,16 +47,16 @@ import tensorflow as tf
 from tensorflow.contrib import ffmpeg
 import pickle
 
-tf.app.flags.DEFINE_string('train_directory', "/Users/luna/workspace/MatchingNetworks-OSL/data/omniglot/raw-data/train",
+tf.app.flags.DEFINE_string('train_directory', "/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/raw-data/train",
                            'Training data directory')
 tf.app.flags.DEFINE_string('validation_directory',
-                           "/Users/luna/workspace/MatchingNetworks-OSL/data/omniglot/raw-data/val",
+                           "/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/raw-data/val",
                            'Validation data directory')
 
-tf.flags.DEFINE_string("output_dir", "/Users/luna/workspace/MatchingNetworks-OSL/data/omniglot/processed-data",
+tf.flags.DEFINE_string("output_dir", "/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/processed-data",
                        "Output data directory.")
 
-tf.flags.DEFINE_string("data_dir", "/Users/luna/workspace/MatchingNetworks-OSL/data/omniglot",
+tf.flags.DEFINE_string("data_dir", "/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot",
                        "Omniglot data directory.")
 
 tf.app.flags.DEFINE_integer('num_threads', 4,
@@ -301,7 +301,7 @@ def _process_image_files(files, name):
     """Process and save list of sound files as TFRecord of Example protos.
 
     Args:
-      filenames: list of strings; each string is a path to a sound file
+      filenames: list of strings; each string is a path to a image file
       texts: list of strings; each string is human readable, e.g. 'power_on'
       labels: list of integer; each integer identifies the ground truth
       num_shards: integer number of shards for this data set.
@@ -360,3 +360,10 @@ def main(unused_argv):
 
 if __name__ == "__main__":
     tf.app.run()
+    # coder = ImageCoder()
+    # file = open('/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/raw-data/train/Alphabet_of_the_Magi/character06/0714_05.png','r')
+    # image = coder.decode_png(file.read())
+    # for idx in range(0,105):
+    #     for oidex in range(0,105):
+    #         if image[idx,oidex,0] != 255:
+    #             print idx,oidex
