@@ -163,9 +163,10 @@ def main(unused_argv):
         for step in xrange(FLAGS.number_of_steps):
 
             start_time = time.time()
-            batch_s_sounds, batch_s_labels = input_ops.data_iterator(dataset, model.config.batch_size_s)
+            shuffled_label_list = input_ops.label_iterator(dataset,model_config.num_classes)
+            batch_s_sounds, batch_s_labels = input_ops.data_iterator(dataset, model.config.batch_size_s,shuffled_label_list)
             batch_s_labels = np.expand_dims(batch_s_labels, 1)
-            test_sound, test_label = input_ops.data_iterator(dataset, model.config.batch_size_b)
+            test_sound, test_label = input_ops.data_iterator(dataset, model.config.batch_size_b,shuffled_label_list)
             test_sound = np.expand_dims(test_sound[0], 0)
             test_label = np.expand_dims(test_label[0], 0).reshape((1, 1))
 
@@ -191,7 +192,7 @@ def main(unused_argv):
                 summary_writer.add_summary(summary, step)
 
             if step % 100 == 0:
-                batch_s_sounds, batch_s_labels, batch_test, batch_test_label = input_ops.eval_data_iterator(dataset, eval_dataset, model.config.batch_size_s, model.config.batch_size_b)
+                batch_s_sounds, batch_s_labels, batch_test, batch_test_label = input_ops.eval_data_iterator(eval_dataset, model.config.batch_size_b,model_config.num_classes)
                 batch_s_labels = np.expand_dims(batch_s_labels, 1)
                 batch_test = np.expand_dims(test_sound[0], 0)
                 batch_test_label = np.expand_dims(test_label[0], 0).reshape((1, 1))

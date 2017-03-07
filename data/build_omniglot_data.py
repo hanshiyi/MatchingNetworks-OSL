@@ -117,7 +117,7 @@ class ImageCoder(object):
 
         # Initializes function that decodes PNG data
         self._png_data = tf.placeholder(dtype=tf.string)
-        self._decode_png = tf.image.decode_png(self._png_data)
+        self._decode_png = tf.image.resize_images(tf.image.decode_png(self._png_data),[28,28])
 
     def decode_png(self, image_data):
         image = self._sess.run(self._decode_png,
@@ -144,7 +144,6 @@ def _process_image(filename, coder):
 
     # Decode the RGB JPEG.
     image = coder.decode_png(image_data)
-
     assert len(image.shape) == 3
     height = image.shape[0]
     width = image.shape[1]

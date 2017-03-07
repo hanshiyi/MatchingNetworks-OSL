@@ -146,20 +146,20 @@ class MatchingNetworks(object):
                 scope=scope)
 
             sound_embeddings = tf.expand_dims(sound_embeddings, 0)
-            sound_embeddings = tf.unpack(sound_embeddings)
+            sound_embeddings = tf.unstack(sound_embeddings)
 
-            cell_fw = tf.nn.rnn_cell.LSTMCell(self.config.embedding_size * 0.5,
+            cell_fw = tf.contrib.rnn.LSTMCell(self.config.embedding_size * 0.5,
                                               initializer=self.initializer,
                                               use_peepholes=True,
                                               state_is_tuple=True)
             # Backward direction cell
-            cell_bw = tf.nn.rnn_cell.LSTMCell(self.config.embedding_size * 0.5,
+            cell_bw = tf.contrib.rnn.LSTMCell(self.config.embedding_size * 0.5,
                                               initializer=self.initializer,
                                               use_peepholes=True,
                                               state_is_tuple=True
                                               )
 
-            (outputs, state, _) = tf.nn.bidirectional_rnn(cell_fw,
+            (outputs, state, _) = tf.contrib.rnn.static_bidirectional_rnn(cell_fw,
                                                           cell_bw,
                                                           sound_embeddings,
                                                           dtype=tf.float32)
@@ -194,16 +194,16 @@ class MatchingNetworks(object):
                 scope=scope)
 
             # Feed the test image embeddings to set the initial LSTM state.
-            cell = tf.nn.rnn_cell.LSTMCell(num_units=self.config.embedding_size,
+            cell = tf.contrib.rnn.LSTMCell(num_units=self.config.embedding_size,
                                            state_is_tuple=False,
                                            use_peepholes=True)
 
             zero_state = cell.zero_state(batch_size=sound_embeddings.get_shape()[0], dtype=tf.float32)
 
             output, initial_state = cell(sound_embeddings, zero_state)
+            output = tf.add(sound_embeddings, output)
 
             attention = tf.nn.softmax((tf.matmul(self.g_embedding[0], tf.transpose(output))))
-            output = tf.add(model_output, output) #wrong
             read_out = tf.reduce_sum(tf.mul(attention, self.g_embedding[0]), 0, keep_dims=True)
             h_concatenated = tf.concat(1, [output, read_out])
 
@@ -212,9 +212,9 @@ class MatchingNetworks(object):
 
             for i in xrange(self.config.lstm_processing_steps):
                 output, initial_state = cell(sound_embeddings, h_concatenated)
+                output = tf.add(sound_embeddings, output)
                 attention = tf.nn.softmax((tf.matmul(self.g_embedding[0], tf.transpose(output))))
-                output = tf.add(model_output, output)
-                read_out = tf.reduce_sum(tf.mul(attention, self.g_embedding[0]), 0, keep_dims=True)
+                read_out = tf.reduce_sum(tf.matmul(attention, self.g_embedding[0]), 0, keep_dims=True)
                 h_concatenated = tf.concat(1, [output, read_out])
 
         self.f_embedding = output
@@ -257,10 +257,10 @@ class MatchingNetworks(object):
 
             #accuracy calc
             self.train_accuracy = tf.reduce_mean(tf.to_float(self.prediction))
-            tf.scalar_summary('train avg accuracy', self.train_accuracy)
+            tf.contrib.deprecated.scalar_summary('train avg accuracy', self.train_accuracy)
 
             self.test_acc = tf.reduce_mean(tf.to_float(self.prediction))
-            self.test_summ = tf.scalar_summary('test avg accuracy', self.test_acc)
+            self.test_summ = tf.contrib.deprecated.scalar_summary('test avg accuracy', self.test_acc)
 
 
             logits = tf.expand_dims(tf.cast(tf.argmax(logits, 1), dtype=tf.float32),0)
@@ -271,7 +271,7 @@ class MatchingNetworks(object):
         total_loss = tf.contrib.slim.losses.get_total_loss()
 
         # Add summaries.
-        tf.scalar_summary("losses", total_loss)
+        tf.contrib.deprecated.scalar_summary("losses", total_loss)
         # Add to TF collection for losses
         tf.add_to_collection('losses', total_loss)
 
