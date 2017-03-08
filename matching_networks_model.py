@@ -112,11 +112,11 @@ class MatchingNetworks(object):
             test_sound = tf.placeholder(dtype=tf.string, shape=[], name="test_feed")
         else:
             self.support_set_sounds = tf.placeholder(dtype=tf.float32,
-                                                     shape=[self.config.batch_size_s * self.config.num_classes, 128, 64,
+                                                     shape=[self.config.batch_size_s * self.config.num_classes, 105, 105,
                                                             1])
             self.support_set_labels = tf.placeholder(dtype=tf.int64,
                                                      shape=[self.config.batch_size_s * self.config.num_classes, 1])
-            self.test_sound = tf.placeholder(dtype=tf.float32, shape=[self.config.batch_size_b, 128, 64, 1])
+            self.test_sound = tf.placeholder(dtype=tf.float32, shape=[self.config.batch_size_b, 105, 105, 1])
             self.test_sound_labels = tf.placeholder(dtype=tf.int64, shape=[self.config.batch_size_b, 1])
 
     def build_fully_conditional_embedding_g(self):
@@ -137,16 +137,16 @@ class MatchingNetworks(object):
             tf.GraphKeys.VARIABLES, scope="g_embedding_support_vectors")
 
         with tf.variable_scope("fce_embedding_g") as scope:
-            sound_embeddings = tf.contrib.layers.fully_connected(
-                inputs=model_output,
-                num_outputs=self.config.embedding_size,
-                activation_fn=None,
-                weights_initializer=self.initializer,
-                biases_initializer=None,
-                scope=scope)
+            # sound_embeddings = tf.contrib.layers.fully_connected(
+            #     inputs=model_output,
+            #     num_outputs=self.config.embedding_size,
+            #     activation_fn=None,
+            #     weights_initializer=self.initializer,
+            #     biases_initializer=None,
+            #     scope=scope)
 
-            sound_embeddings = tf.expand_dims(sound_embeddings, 0)
-            sound_embeddings = tf.unstack(sound_embeddings)
+            model_output = tf.expand_dims(model_output, 0)
+            model_output = tf.unstack(model_output)
 
             cell_fw = tf.contrib.rnn.LSTMCell(self.config.embedding_size * 0.5,
                                               initializer=self.initializer,
@@ -161,7 +161,7 @@ class MatchingNetworks(object):
 
             (outputs, state, _) = tf.contrib.rnn.static_bidirectional_rnn(cell_fw,
                                                           cell_bw,
-                                                          sound_embeddings,
+                                                          model_output,
                                                           dtype=tf.float32)
 
         self.g_embedding = outputs
@@ -185,37 +185,37 @@ class MatchingNetworks(object):
             tf.GraphKeys.VARIABLES, scope="f_test_support_vector")
 
         with tf.variable_scope('fce_embedding_f', initializer=self.initializer) as scope:
-            sound_embeddings = tf.contrib.layers.fully_connected(
-                inputs=model_output,
-                num_outputs=self.config.embedding_size,
-                activation_fn=None,
-                weights_initializer=self.initializer,
-                biases_initializer=None,
-                scope=scope)
+            # sound_embeddings = tf.contrib.layers.fully_connected(
+            #     inputs=model_output,
+            #     num_outputs=self.config.embedding_size,
+            #     activation_fn=None,
+            #     weights_initializer=self.initializer,
+            #     biases_initializer=None,
+            #     scope=scope)
 
             # Feed the test image embeddings to set the initial LSTM state.
             cell = tf.contrib.rnn.LSTMCell(num_units=self.config.embedding_size,
                                            state_is_tuple=False,
                                            use_peepholes=True)
 
-            zero_state = cell.zero_state(batch_size=sound_embeddings.get_shape()[0], dtype=tf.float32)
+            zero_state = cell.zero_state(batch_size=model_output.get_shape()[0], dtype=tf.float32)
 
-            output, initial_state = cell(sound_embeddings, zero_state)
-            output = tf.add(sound_embeddings, output)
+            output, initial_state = cell(model_output, zero_state)
+            output = tf.add(model_output, output)
 
             attention = tf.nn.softmax((tf.matmul(self.g_embedding[0], tf.transpose(output))))
-            read_out = tf.reduce_sum(tf.mul(attention, self.g_embedding[0]), 0, keep_dims=True)
-            h_concatenated = tf.concat(1, [output, read_out])
+            read_out = tf.reduce_sum(tf.matmul(tf.transpose(attention), self.g_embedding[0]), 0, keep_dims=True)
+            h_concatenated = tf.concat([output, read_out], 1)
 
             scope.reuse_variables()
             # Embedding shared by the input and outputs.
 
             for i in xrange(self.config.lstm_processing_steps):
-                output, initial_state = cell(sound_embeddings, h_concatenated)
-                output = tf.add(sound_embeddings, output)
+                output, initial_state = cell(model_output, h_concatenated)
+                output = tf.add(model_output, output)
                 attention = tf.nn.softmax((tf.matmul(self.g_embedding[0], tf.transpose(output))))
-                read_out = tf.reduce_sum(tf.matmul(attention, self.g_embedding[0]), 0, keep_dims=True)
-                h_concatenated = tf.concat(1, [output, read_out])
+                read_out = tf.reduce_sum(tf.matmul(tf.transpose(attention), self.g_embedding[0]), 0, keep_dims=True)
+                h_concatenated = tf.concat([output, read_out], 1)
 
         self.f_embedding = output
 
@@ -253,14 +253,15 @@ class MatchingNetworks(object):
 
             logits = logits * tf.contrib.slim.one_hot_encoding(tf.squeeze(self.support_set_labels), self.config.num_classes)
             logits = tf.reduce_sum(logits, 0, keep_dims=True)
-            self.prediction = tf.nn.in_top_k(logits,tf.squeeze(self.test_sound_labels, squeeze_dims=[0]),1)
+            test_label = tf.squeeze(self.test_sound_labels,axis=0)
+            self.prediction = tf.nn.in_top_k(logits, test_label,1)
 
             #accuracy calc
             self.train_accuracy = tf.reduce_mean(tf.to_float(self.prediction))
-            tf.contrib.deprecated.scalar_summary('train avg accuracy', self.train_accuracy)
+            tf.summary.scalar('train avg accuracy', self.train_accuracy)
 
             self.test_acc = tf.reduce_mean(tf.to_float(self.prediction))
-            self.test_summ = tf.contrib.deprecated.scalar_summary('test avg accuracy', self.test_acc)
+            self.test_summ = tf.summary.scalar('test avg accuracy', self.test_acc)
 
 
             logits = tf.expand_dims(tf.cast(tf.argmax(logits, 1), dtype=tf.float32),0)
@@ -271,7 +272,7 @@ class MatchingNetworks(object):
         total_loss = tf.contrib.slim.losses.get_total_loss()
 
         # Add summaries.
-        tf.contrib.deprecated.scalar_summary("losses", total_loss)
+        tf.summary.scalar("losses", total_loss)
         # Add to TF collection for losses
         tf.add_to_collection('losses', total_loss)
 

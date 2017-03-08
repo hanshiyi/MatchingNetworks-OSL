@@ -80,7 +80,7 @@ def train_op_fun(total_loss, global_step):
                                     decay_steps,
                                     LEARNING_RATE_DECAY_FACTOR,
                                     staircase=True)
-    tf.scalar_summary('learning_rate', lr)
+    tf.summary.scalar('learning_rate', lr)
 
     # Generate moving averages of all losses and associated summaries.
     loss_averages_op = total_loss
@@ -95,7 +95,7 @@ def train_op_fun(total_loss, global_step):
 
     # Add histograms for trainable variables.
     for var in tf.trainable_variables():
-        tf.histogram_summary(var.op.name, var)
+        tf.summary.histogram(var.op.name, var)
 
     # Track the moving averages of all trainable variables.
     variable_averages = tf.train.ExponentialMovingAverage(
@@ -128,7 +128,7 @@ def main(unused_argv):
     with tf.Graph().as_default():
         dataset = input_ops.process_pickles_and_augment("/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/processed-data", 0.02,
                                                         'train')
-        eval_dataset = input_ops.process_pickles_and_augment("/Users/hanshiyi/workspace/MatchingNetworks-OSL/omniglot/data/processed-data", 0.02,
+        eval_dataset = input_ops.process_pickles_and_augment("/Users/hanshiyi/workspace/MatchingNetworks-OSL/data/omniglot/processed-data", 0.02,
                                                         'validation')
 
         model = matching_networks_model.MatchingNetworks(
@@ -142,11 +142,11 @@ def main(unused_argv):
         #test_acc = tf.reduce_mean(tf.to_float(model.top_k))
 
         # Create a saver.
-        saver = tf.train.Saver(tf.all_variables())
+        saver = tf.train.Saver(tf.global_variables())
 
 
         # Build an initialization operation to run below.
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
 
         # Start running operations on the Graph. allow_soft_placement must be set to
         # True to build towers on GPU, as some of the ops do not have GPU
@@ -156,17 +156,17 @@ def main(unused_argv):
         sess.run(init)
 
         # Build the summary operation from the last tower summaries.
-        summary_op = tf.merge_all_summaries()
-
-        summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, sess.graph)
+        summary_op = tf.contrib.deprecated.merge_all_summaries()
+        avg_train_acc = 0.0
+        summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
 
         for step in xrange(FLAGS.number_of_steps):
 
             start_time = time.time()
             shuffled_label_list = input_ops.label_iterator(dataset,model_config.num_classes)
-            batch_s_sounds, batch_s_labels = input_ops.data_iterator(dataset, model.config.batch_size_s,shuffled_label_list)
+            batch_s_sounds, batch_s_labels = input_ops.data_iterator(dataset, model.config.batch_size_s,shuffled_label_list,sess)
             batch_s_labels = np.expand_dims(batch_s_labels, 1)
-            test_sound, test_label = input_ops.data_iterator(dataset, model.config.batch_size_b,shuffled_label_list)
+            test_sound, test_label = input_ops.data_iterator(dataset, model.config.batch_size_b,shuffled_label_list,sess)
             test_sound = np.expand_dims(test_sound[0], 0)
             test_label = np.expand_dims(test_label[0], 0).reshape((1, 1))
 
@@ -176,10 +176,10 @@ def main(unused_argv):
                          model.test_sound: test_sound,
                          model.test_sound_labels: test_label}
 
-            _, train_acc, loss_val, summary = sess.run([train_op, model.train_accuracy, model.loss, summary_op], feed_dict=feed_dict)
-
+            pred, _, train_acc, loss_val, summary = sess.run([model.prediction,train_op, model.train_accuracy, model.loss, summary_op], feed_dict=feed_dict)
+            # print (pred)
             duration = time.time() - start_time
-
+            avg_train_acc += train_acc
             assert not np.isnan(loss_val), 'Model diverged with loss = NaN'
 
             if step % 10 == 0:
@@ -187,15 +187,15 @@ def main(unused_argv):
                 format_str = ('%s: episode %d, loss = %.2f (%.1f examples/sec; %.3f '
                               'sec/shot) train_acc = %.4f')
                 print(format_str % (datetime.now(), step, loss_val,
-                                    number_of_shot, duration, train_acc))
-
+                                    number_of_shot, duration, avg_train_acc/10.0))
+                avg_train_acc = 0
                 summary_writer.add_summary(summary, step)
 
             if step % 100 == 0:
-                batch_s_sounds, batch_s_labels, batch_test, batch_test_label = input_ops.eval_data_iterator(eval_dataset, model.config.batch_size_b,model_config.num_classes)
+                batch_s_sounds, batch_s_labels, batch_test, batch_test_label = input_ops.eval_data_iterator(eval_dataset, model.config.batch_size_b,model_config.num_classes,sess)
                 batch_s_labels = np.expand_dims(batch_s_labels, 1)
-                batch_test = np.expand_dims(test_sound[0], 0)
-                batch_test_label = np.expand_dims(test_label[0], 0).reshape((1, 1))
+                batch_test = np.expand_dims(batch_test[0], 0)
+                batch_test_label = np.expand_dims(batch_test_label[0], 0).reshape((1, 1))
                 # Prepare dictionnary to feed the session with
                 feed_dict = {model.support_set_sounds: batch_s_sounds,
                              model.support_set_labels: batch_s_labels,

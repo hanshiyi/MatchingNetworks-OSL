@@ -57,7 +57,6 @@ def process_pickles_and_augment_sound(directory, augment_percent, mode):
     elif mode == 'validation':
         tf_record_pattern = os.path.join(directory, '%s-*' % "validation")
     data_files = tf.gfile.Glob(tf_record_pattern)
-    print data_files
     for i in data_files:
         dataset.append(np.load(i))
 
@@ -90,8 +89,25 @@ def process_pickles_and_augment(directory, augment_percent, mode):
 
 
     new_dataset = {}
+
+
+    return data_files
+
+
+def label_iterator(dataset, num_classes):
+    labellsit = dataset
+    return random.sample(labellsit,num_classes)
+
+def data_iterator(dataset, batch_size, label_file_list,_sess):
+    """ A simple data iterator """
+
+    # shuffle labels and features
+    batch_sounds = []
+    batch_labels = []
     _sess = tf.Session()
-    for iter in data_files:
+    new_dataset = {}
+    label_list = []
+    for iter in label_file_list:
         for s_example in tf.python_io.tf_record_iterator(iter):
             example = tf.train.Example()
             example.ParseFromString(s_example)
@@ -99,26 +115,12 @@ def process_pickles_and_augment(directory, augment_percent, mode):
             _png_data = tf.placeholder(dtype=tf.string)
             image_data = _sess.run(tf.image.decode_png(_png_data), feed_dict={_png_data: image_encoding[0]})
             label = example.features.feature['image/class/label'].int64_list.value
-            new_dataset.setdefault(label[0],[])
+            label_list.append(label[0])
+            new_dataset.setdefault(label[0], [])
             new_dataset[label[0]].append(image_data)
-
-    return new_dataset
-
-
-def label_iterator(dataset, num_classes):
-    labellsit = dataset.keys()
-    return random.sample(labellsit,num_classes)
-
-def data_iterator(dataset, batch_size, label_list):
-    """ A simple data iterator """
-
-    # shuffle labels and features
-    batch_sounds = []
-    batch_labels = []
-
-    for key in label_list():
+    label_list = sorted(list(set(label_list)))
+    for key,value in new_dataset.iteritems():
         # give me five random indices between 0 and len of dataset
-        value = dataset[key]
         idxs = random.sample(range(0, len(value)), batch_size)
 
         # get those images and append to batch_s_images
@@ -126,19 +128,20 @@ def data_iterator(dataset, batch_size, label_list):
             batch_sounds.append([value[i]])
 
             # get those labels and append to batch_s_labels
-            batch_labels.append(int(key))
+            batch_labels.append(label_list.index(int(key)))
 
     shuffled_index = range(len(batch_sounds))
+    batch_sounds = np.array(batch_sounds)
     random.seed(12345)
     random.shuffle(shuffled_index)
-
+    batch_sounds = np.squeeze(batch_sounds,axis=1)
     batch_sounds = [batch_sounds[i] for i in shuffled_index]
     batch_labels = [batch_labels[i] for i in shuffled_index]
-    batch_sounds = np.vstack(batch_sounds)
+    # batch_sounds = np.vstack(batch_sounds)
 
     return batch_sounds, batch_labels
 
-def eval_data_iterator(eval_dataset, batch_size_b,num_classes):
+def eval_data_iterator(eval_dataset, batch_size_b,num_classes,_sess):
     """ A simple data iterator """
 
     # shuffle labels and features
@@ -146,11 +149,24 @@ def eval_data_iterator(eval_dataset, batch_size_b,num_classes):
     batch_labels = []
     test_sound = []
     test_label = []
-    labellsit = eval_dataset.keys()
+    labellsit = eval_dataset
     labellist = random.sample(labellsit, num_classes)
+    new_dataset = {}
+    label_list = []
+    for iter in labellist:
+        for s_example in tf.python_io.tf_record_iterator(iter):
+            example = tf.train.Example()
+            example.ParseFromString(s_example)
+            image_encoding = example.features.feature['image/encoded'].bytes_list.value
+            _png_data = tf.placeholder(dtype=tf.string)
+            image_data = _sess.run(tf.image.decode_png(_png_data), feed_dict={_png_data: image_encoding[0]})
+            label = example.features.feature['image/class/label'].int64_list.value
+            label_list.append(label[0])
+            new_dataset.setdefault(label[0], [])
+            new_dataset[label[0]].append(image_data)
 
-    for key in labellist:
-        value = eval_dataset[key]
+    label_list = sorted(list(set(label_list)))
+    for key,value in new_dataset.iteritems():
         # give me 1 random indices between 0 and len of dataset
         idxs = random.sample(range(0, len(value)), batch_size_b)
 
@@ -159,10 +175,9 @@ def eval_data_iterator(eval_dataset, batch_size_b,num_classes):
             batch_sounds.append([value[i]])
 
             # get those labels and append to batch_s_labels
-            batch_labels.append(int(key))
+            batch_labels.append(label_list.index(int(key)))
 
-    for key in labellist:
-        value = eval_dataset[key]
+    for key,value in new_dataset.iteritems():
         # give me 1 random indices between 0 and len of dataset
         idxs = random.sample(range(0, len(value)), 1)
 
@@ -171,7 +186,7 @@ def eval_data_iterator(eval_dataset, batch_size_b,num_classes):
             test_sound.append([value[i]])
 
             # get those labels and append to batch_s_labels
-            test_label.append(int(key))
+            test_label.append(label_list.index(int(key)))
 
     shuffled_index = range(len(batch_sounds))
     random.seed(12345)
